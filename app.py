@@ -16,29 +16,30 @@ NOME_LOGO = "logo.jpeg"
 # --- 2. FUNÇÕES DE APOIO ---
 
 def contar_caracteres(arquivo):
-    """Lê o arquivo Word buscando caracteres no corpo, tabelas e notas de rodapé."""
+    """Varredura total para bater com o contador do Word."""
     doc = Document(arquivo)
     texto_total = ""
     
-    # 1. Conta o texto dos parágrafos principais
+    # 1. Corpo principal (Parágrafos)
     for p in doc.paragraphs:
         texto_total += p.text
     
-    # 2. Conta o texto dentro de tabelas
+    # 2. Tabelas
     for tabela in doc.tables:
         for linha in tabela.rows:
             for celula in linha.cells:
                 texto_total += celula.text
                 
-    # 3. CONTA NOTAS DE RODAPÉ (Footnotes)
-    # A biblioteca docx guarda notas de rodapé em um lugar específico do arquivo XML
-    try:
-        if doc.part.footnotes:
-            for n in doc.part.footnotes.part.element.xpath('//w:t'):
-                if n.text:
-                    texto_total += n.text
-    except:
-        pass # Se não houver notas, ele ignora silenciosamente
+    # 3. Notas de Rodapé e Notas de Fim (Varredura profunda no XML)
+    # Buscamos todos os elementos de texto 'w:t' em todas as partes do documento
+    for part in doc.part.package.parts:
+        if "footnotes" in part.partname or "endnotes" in part.partname:
+            from lxml import etree
+            root = etree.fromstring(part.blob)
+            # 'w:t' é a tag XML para texto no Word
+            for element in root.xpath('//w:t', namespaces={'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}):
+                if element.text:
+                    texto_total += element.text
 
     return len(texto_total)
 
@@ -105,8 +106,12 @@ with col1:
     arquivo_word = st.file_uploader("Suba o manuscrito (.docx)", type=["docx"])
     
     if arquivo_word:
-        total_caracteres = contar_caracteres(arquivo_word)
-        st.success(f"{total_caracteres} caracteres detectados (Incluindo Notas).")
+        try:
+            total_caracteres = contar_caracteres(arquivo_word)
+            st.success(f"{total_caracteres} caracteres detectados (Precisão Word).")
+        except Exception as e:
+            st.error(f"Erro na leitura profunda: {e}")
+            total_caracteres = 0
     else:
         total_caracteres = st.number_input("Ou digite os caracteres manualmente:", value=0)
 

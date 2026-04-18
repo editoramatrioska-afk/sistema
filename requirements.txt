@@ -2,4 +2,4 @@ streamlit
 supabase
 python-docx
 fpdf
-lxml
+docx2txt

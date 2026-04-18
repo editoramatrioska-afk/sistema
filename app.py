@@ -70,12 +70,12 @@ def gerar_pdf_matrioska(dados):
     
     pdf.set_font("helvetica", size=12)
     texto_apresentacao = (
-        "    A Matrioska é uma editora de livros científicos, técnicos e profissionais, provedora de conteúdo para a "
+        "A Matrioska é uma editora de livros científicos, técnicos e profissionais, provedora de conteúdo para a "
         "formação sólida de estudantes universitários e para a atualização de profissionais das mais diversas áreas do conhecimento.\n\n"
-        "    Nosso catálogo contempla autoras e autores de primeira linha, que aliam o que há de mais inovador em termos de abordagem "
+        "Nosso catálogo contempla autoras e autores de primeira linha, que aliam o que há de mais inovador em termos de abordagem "
         "e rigor acadêmico, avaliados e validados por um renomado Conselho Editorial Nacional e Internacional que resguarda a "
         "qualidade de nossas publicações.\n\n"
-        "    Se você acredita no futuro dos livros (independente do formato ou suporte), vem com a gente!\n"
+        "Se você acredita no futuro dos livros (independente do formato ou suporte), vem com a gente!\n"
         "Para nós é uma grande satisfação tê-la como nosso autora.\n\n"
         "Forte abraço,\n\n"
         "Patrícia Melo e Luciana Félix"
@@ -98,6 +98,9 @@ def gerar_pdf_matrioska(dados):
     pdf.cell(0, 7, f"- Laudas: {dados['laudas']:.0f}", ln=True)
     pdf.cell(0, 7, f"- Páginas estimadas: {dados['paginas']}", ln=True)
     pdf.cell(0, 7, f"- Formato: {dados['formato']}", ln=True)
+    pdf.cell(0, 7, f"- Miolo: {dados['miolo']}", ln=True)
+    pdf.cell(0, 7, f"- Capa: {dados['capa']}", ln=True)
+    pdf.cell(0, 7, f"- Acabamento: {dados['acabamento']}", ln=True)
     pdf.ln(5)
 
     pdf.set_font("helvetica", 'B', 12)
@@ -113,17 +116,6 @@ def gerar_pdf_matrioska(dados):
     for item in itens:
         pdf.multi_cell(0, 6, item)
         pdf.ln(2)
-
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "Valores detalhados dos serviços:", ln=True)
-    pdf.set_font("helvetica", size=11)
-    pdf.cell(0, 7, f"- Copidesque: R$ {dados['v_copidesque']:.2f}", ln=True)
-    pdf.cell(0, 7, f"- Diagramação: R$ {dados['v_diag']:.2f}", ln=True)
-    pdf.cell(0, 7, f"- Revisão: R$ {dados['v_revisao']:.2f}", ln=True)
-    pdf.cell(0, 7, f"- E-pub: R$ {dados['v_epub']:.2f}", ln=True)
-    pdf.cell(0, 7, f"- Capa, ISBN e Fichas: R$ {dados['v_fixos']:.2f}", ln=True)
-    pdf.cell(0, 7, f"- Taxa da Editora: R$ {dados['v_taxa_ed']:.2f}", ln=True)
 
     # --- PÁGINA 3: INVESTIMENTO ---
     pdf.add_page()
@@ -150,7 +142,6 @@ def gerar_pdf_matrioska(dados):
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 10, obter_data_formatada(), ln=True)
 
-    # CORREÇÃO DEFINITIVA: Converter o output para bytes
     return bytes(pdf.output())
 
 # --- 3. INTERFACE STREAMLIT ---
@@ -202,6 +193,11 @@ with col2:
     elif formato_sel not in ["14x21", "16x23", "17x24"]:
         meta = st.session_state['formatos_custom'][formato_sel]
 
+    # NOVAS OPÇÕES SOLICITADAS
+    miolo_sel = st.selectbox("Miolo:", ["PB", "Colorido", "PB com caderno colorido"])
+    capa_sel = st.selectbox("Capa:", ["4x0", "4x1", "4x4"])
+    acabamento_sel = st.selectbox("Acabamento:", ["Brochura", "Capa Dura"])
+
     incluir_epub = st.checkbox("Incluir E-pub?", value=True)
 
 # --- 4. CÁLCULOS ---
@@ -218,9 +214,8 @@ valor_total = custo_copidesque + custo_diag + custo_revisao + custo_epub + custo
 
 dados_finais = {
     "cliente": nome_cliente, "livro": nome_livro, "caracteres": total_caracteres, 
-    "laudas": qtd_laudas, "formato": formato_sel, "paginas": total_paginas, "total": valor_total,
-    "v_copidesque": custo_copidesque, "v_diag": custo_diag, "v_revisao": custo_revisao,
-    "v_epub": custo_epub, "v_fixos": custos_fixos, "v_taxa_ed": p_taxa_editora
+    "laudas": qtd_laudas, "formato": formato_sel, "miolo": miolo_sel, "capa": capa_sel, 
+    "acabamento": acabamento_sel, "paginas": total_paginas, "total": valor_total
 }
 
 st.markdown("---")
@@ -232,11 +227,8 @@ if total_caracteres > 0:
         supabase.table("orcamentos").insert(payload).execute()
         st.success("Salvo no banco de dados!")
 
-    # GERAR PDF
     try:
-        # A função gerar_pdf_matrioska já retorna bytes agora
         pdf_bytes = gerar_pdf_matrioska(dados_finais)
-        
         st.download_button(
             label="📥 Gerar Proposta Editorial (PDF)", 
             data=pdf_bytes, 

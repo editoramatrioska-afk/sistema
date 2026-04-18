@@ -7,7 +7,7 @@ import io
 import os 
 from lxml import etree
 from datetime import datetime
-from num2words import num2words # Para o valor por extenso
+from num2words import num2words
 
 # --- 1. CONEXÃO COM O BANCO DE DADOS ---
 URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
@@ -22,10 +22,7 @@ NOME_RODAPE = "rodape.png"
 def valor_por_extenso(valor):
     try:
         inteiro = int(valor)
-        centavos = int(round((valor - inteiro) * 100))
         extenso = num2words(inteiro, lang='pt_BR')
-        if centavos > 0:
-            extenso += f" e {num2words(centavos, lang='pt_BR')} centavos"
         return f"({extenso} reais)"
     except:
         return ""
@@ -108,6 +105,7 @@ def gerar_pdf_matrioska(dados):
     pdf.cell(0, 8, "Produção editorial Premium", ln=True)
     pdf.set_font("helvetica", size=11)
     
+    # IMPORTANTE: Usei '-' em vez de '•' para evitar o erro de Unicode
     itens = [
         "- Copidesque e preparação de textos (revisão ortográfica e padronização conforme ABNT), diagramação, revisão pós-diagramação, conferências e fechamento de arquivo.",
         "- ISBN, Capa; ficha catalográfica, código de barras.",
@@ -139,12 +137,13 @@ def gerar_pdf_matrioska(dados):
     valor_f = f"R$ {dados['total']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     extenso = valor_por_extenso(dados['total'])
     
+    # Removido o símbolo '•' aqui também
     texto_investimento = (
-        f"• {valor_f} {extenso} para custeio da produção editorial "
+        f"- {valor_f} {extenso} para custeio da produção editorial "
         "(etapas de copidesque, projeto gráfico e diagramação, revisão pós-diagramação, "
         "capa, conferências e fechamento de arquivos: para impressão e e-books);\n\n"
-        "• Não inclui exemplares impressos;\n\n"
-        "• Condição de pagamento: 40% na assinatura do contrato; 30% após 30 dias "
+        "- Não inclui exemplares impressos;\n\n"
+        "- Condição de pagamento: 40% na assinatura do contrato; 30% após 30 dias "
         "e o restante no envio do arquivo para a gráfica.\n\n"
         "Orçamento válido por 30 dias."
     )
@@ -153,7 +152,6 @@ def gerar_pdf_matrioska(dados):
     pdf.ln(20)
     escrever_data(pdf)
 
-    # CORREÇÃO DO 0 BYTES: Usando o buffer de bytes
     return pdf.output()
 
 # --- 3. INTERFACE STREAMLIT ---
@@ -182,6 +180,7 @@ with col1:
     nome_livro = st.text_input("Nome do Livro:") 
     arquivo_word = st.file_uploader("Subir Manuscrito (.docx)", type=["docx"])
     
+    total_caracteres = 0
     if arquivo_word:
         total_caracteres = contar_caracteres_oficial_word(arquivo_word)
         st.success(f"{total_caracteres} caracteres detectados.")
@@ -189,7 +188,7 @@ with col1:
         total_caracteres = st.number_input("Total de caracteres manualmente:", value=0)
 
     st.subheader("Elementos Extras")
-    pag_extras = st.number_input("Soma de páginas extras (Imagens, Tabelas, etc):", min_value=0, value=0)
+    pag_extras = st.number_input("Soma de páginas extras:", min_value=0, value=0)
 
 with col2:
     opcoes_formato = ["14x21", "16x23", "17x24", "Personalizado"] + list(st.session_state['formatos_custom'].keys())
@@ -236,17 +235,12 @@ if total_caracteres > 0:
 
     # GERAR PDF
     try:
-        pdf_output = gerar_pdf_matrioska(dados_finais)
-        # O fpdf2 entrega bytes diretamente no output()
+        pdf_bytes = gerar_pdf_matrioska(dados_finais)
         st.download_button(
             label="📥 Gerar Proposta Editorial (PDF)", 
-            data=bytes(pdf_output), 
+            data=pdf_bytes, 
             file_name=f"Proposta_{nome_livro}.pdf",
             mime="application/pdf"
         )
     except Exception as e:
         st.error(f"Erro ao gerar PDF: {e}")
-
-if st.checkbox("Ver histórico"):
-    hist = supabase.table("orcamentos").select("*").execute()
-    st.dataframe(hist.data)

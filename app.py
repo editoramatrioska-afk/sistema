@@ -4,16 +4,19 @@ import math
 from docx import Document
 from fpdf import FPDF
 import io
+import os 
 
 # --- 1. CONEXÃO COM O BANCO DE DADOS (SUPABASE) ---
 URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
 KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZW9penJxeHpvcGpzeHRod3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NzAwNzcsImV4cCI6MjA5MjA0NjA3N30.dGQ3gnzjT5jHd4LAZTTSp1k8XemowUglFToPbDL38OY"
 supabase: Client = create_client(URL, KEY)
 
-# --- 2. FUNÇÕES DE APOIO (LÓGICA DO NEGÓCIO) ---
+# AJUSTADO: Agora o sistema busca por .jpeg
+NOME_LOGO = "logo.jpeg"
+
+# --- 2. FUNÇÕES DE APOIO ---
 
 def contar_caracteres(arquivo):
-    """Lê o arquivo Word e conta caracteres com espaços e notas."""
     doc = Document(arquivo)
     texto_total = ""
     for p in doc.paragraphs:
@@ -25,9 +28,14 @@ def contar_caracteres(arquivo):
     return len(texto_total)
 
 def gerar_pdf(dados):
-    """Cria um PDF organizado para o cliente."""
     pdf = FPDF()
     pdf.add_page()
+    
+    # Inserir Logo no PDF se o arquivo existir
+    if os.path.exists(NOME_LOGO):
+        pdf.image(NOME_LOGO, 10, 8, 30) 
+        pdf.ln(20)
+
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(200, 10, "Orcamento Editorial", ln=True, align='C')
     pdf.ln(10)
@@ -36,7 +44,7 @@ def gerar_pdf(dados):
     pdf.cell(200, 10, f"Cliente/Obra: {dados['cliente']}", ln=True)
     pdf.cell(200, 10, f"Formato Escolhido: {dados['formato']}", ln=True)
     pdf.cell(200, 10, f"Total de Caracteres: {dados['caracteres']}", ln=True)
-    pdf.cell(200, 10, f"Qtd. de Laudas (2000 carac.): {dados['laudas']:.2f}", ln=True)
+    pdf.cell(200, 10, f"Qtd. de Laudas: {dados['laudas']:.2f}", ln=True)
     pdf.cell(200, 10, f"Estimativa de Paginas: {dados['paginas']}", ln=True)
     
     pdf.ln(10)
@@ -52,20 +60,29 @@ def gerar_pdf(dados):
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(200, 10, f"VALOR TOTAL: R$ {dados['total']:.2f}", ln=True)
     
-    return pdf.output(dest='S').encode('latin-1')
+    pdf.ln(20)
+    pdf.set_font("Arial", 'I', 10)
+    pdf.multi_cell(0, 8, "Este orcamento e uma estimativa baseada nos dados fornecidos. Valido por 30 dias.")
 
-# --- 3. INTERFACE DO USUÁRIO (STREAMLIT) ---
+    return pdf.output(dest='S').encode('latin-1', errors='ignore')
 
-st.set_page_config(page_title="Editora - Sistema de Orçamento", layout="wide")
+# --- 3. INTERFACE (STREAMLIT) ---
+
+st.set_page_config(page_title="Editora - Orçamentador", layout="wide")
+
+with st.sidebar:
+    if os.path.exists(NOME_LOGO):
+        st.image(NOME_LOGO, width=150)
+    else:
+        st.warning(f"Aviso: O arquivo '{NOME_LOGO}' não foi encontrado.")
+        
+    st.header("Configuração de Preços")
+    valor_lauda = st.number_input("Preço da Lauda (R$)", value=6.0)
+    valor_pag_diagramacao = st.number_input("Diagramação por Página (R$)", value=5.0)
+    custos_fixos_padrao = st.number_input("Capa + ISBN + Ficha (R$)", value=750.0)
+
 st.title("📚 Orçamentador Editorial Profissional")
 
-# Sidebar para Custos Fixos (Você pode alterar conforme precisar)
-st.sidebar.header("Configuração de Preços")
-valor_lauda = st.sidebar.number_input("Preço da Lauda (R$)", value=6.0)
-valor_pag_diagramacao = st.sidebar.number_input("Diagramação por Página (R$)", value=5.0)
-custos_fixos_padrao = st.sidebar.number_input("Capa + ISBN + Ficha (R$)", value=750.0)
-
-# Entrada de Dados
 st.subheader("1. Informações do Projeto")
 col1, col2 = st.columns(2)
 
@@ -75,7 +92,7 @@ with col1:
     
     if arquivo_word:
         total_caracteres = contar_caracteres(arquivo_word)
-        st.success(f"Sucesso! {total_caracteres} caracteres detectados.")
+        st.success(f"{total_caracteres} caracteres detectados.")
     else:
         total_caracteres = st.number_input("Ou digite os caracteres manualmente:", value=0)
 
@@ -84,34 +101,23 @@ with col2:
     quer_ebook = st.checkbox("Incluir conversão para E-book?", value=True)
 
 # --- 4. CÁLCULOS ---
-# Calculando Laudas
 qtd_laudas = total_caracteres / 2000
-
-# Estimativa de Páginas baseada no formato (Fatores de conversão)
 fatores = {"14x21": 1.15, "16x23": 1.0, "17x24": 0.9}
 est_paginas = math.ceil(qtd_laudas * fatores[formato])
 
-# Cálculo de Custos
 c_revisao = qtd_laudas * valor_lauda
 c_diagramacao = est_paginas * valor_pag_diagramacao
-c_ebook = est_paginas * 2.0 if quer_ebook else 0.0 # Exemplo: R$ 2 por página para converter e-book
+c_ebook = est_paginas * 2.0 if quer_ebook else 0.0
 total_geral = c_revisao + c_diagramacao + c_ebook + custos_fixos_padrao
 
-# Dados consolidados para salvar e gerar PDF
 dados_finais = {
-    "cliente": nome_cliente,
-    "caracteres": total_caracteres,
-    "laudas": qtd_laudas,
-    "formato": formato,
-    "paginas": est_paginas,
-    "custo_revisao": c_revisao,
-    "custo_diagramacao": c_diagramacao,
-    "custo_ebook": c_ebook,
-    "custos_fixos": custos_fixos_padrao,
-    "total": total_geral
+    "cliente": nome_cliente, "caracteres": total_caracteres, "laudas": qtd_laudas,
+    "formato": formato, "paginas": est_paginas, "custo_revisao": c_revisao,
+    "custo_diagramacao": c_diagramacao, "custo_ebook": c_ebook,
+    "custos_fixos": custos_fixos_padrao, "total": total_geral
 }
 
-# --- 5. EXIBIÇÃO DE RESULTADOS E AÇÕES ---
+# --- 5. EXIBIÇÃO E AÇÕES ---
 st.markdown("---")
 if total_caracteres > 0:
     c1, c2, c3 = st.columns(3)
@@ -119,25 +125,21 @@ if total_caracteres > 0:
     c2.metric("Est. de Páginas", est_paginas)
     c3.metric("Investimento Total", f"R$ {total_geral:,.2f}")
 
-    col_btn1, col_btn2 = st.columns(2)
+    btn_col1, btn_col2 = st.columns(2)
     
-    with col_btn1:
-        if st.button("💾 Salvar no Banco de Dados"):
+    with btn_col1:
+        if st.button("💾 Salvar no Banco"):
             if nome_cliente:
-                # Prepara os dados para o Supabase (colunas devem existir na tabela)
                 payload = {
-                    "cliente": nome_cliente,
-                    "caracteres": total_caracteres,
-                    "formato": formato,
-                    "paginas": est_paginas,
-                    "valor_total": total_geral
+                    "cliente": nome_cliente, "caracteres": total_caracteres,
+                    "formato": formato, "paginas": est_paginas, "valor_total": total_geral
                 }
                 supabase.table("orcamentos").insert(payload).execute()
-                st.success("Orçamento gravado com sucesso!")
+                st.success("Salvo!")
             else:
-                st.warning("Dê um nome ao projeto antes de salvar.")
+                st.warning("Insira o nome do cliente.")
 
-    with col_btn2:
+    with btn_col2:
         pdf_file = gerar_pdf(dados_finais)
         st.download_button(
             label="📥 Baixar Orçamento em PDF",
@@ -146,8 +148,6 @@ if total_caracteres > 0:
             mime="application/pdf"
         )
 
-# Histórico
-st.markdown("---")
-if st.checkbox("Visualizar histórico de orçamentos salvos"):
-    historico = supabase.table("orcamentos").select("*").execute()
-    st.dataframe(historico.data)
+if st.checkbox("Ver histórico"):
+    hist = supabase.table("orcamentos").select("*").execute()
+    st.dataframe(hist.data)

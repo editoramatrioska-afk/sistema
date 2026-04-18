@@ -2,11 +2,12 @@ import streamlit as st
 from supabase import create_client, Client
 import math
 from docx import Document
-from fpdf import FPDF # fpdf2 também usa esse import, mas funciona melhor
+from fpdf import FPDF
 import io
 import os 
 from lxml import etree
 from datetime import datetime
+from num2words import num2words # Para o valor por extenso
 
 # --- 1. CONEXÃO COM O BANCO DE DADOS ---
 URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
@@ -17,6 +18,17 @@ NOME_LOGO = "logo.png"
 NOME_RODAPE = "rodape.png"
 
 # --- 2. FUNÇÕES DE APOIO ---
+
+def valor_por_extenso(valor):
+    try:
+        inteiro = int(valor)
+        centavos = int(round((valor - inteiro) * 100))
+        extenso = num2words(inteiro, lang='pt_BR')
+        if centavos > 0:
+            extenso += f" e {num2words(centavos, lang='pt_BR')} centavos"
+        return f"({extenso} reais)"
+    except:
+        return ""
 
 def contar_caracteres_oficial_word(arquivo):
     doc = Document(arquivo)
@@ -41,7 +53,6 @@ class PDF_Proposta(FPDF):
 
     def footer(self):
         if os.path.exists(NOME_RODAPE):
-            # Rodapé posicionado no final da página
             self.image(NOME_RODAPE, 0, 275, 210)
 
 def escrever_data(pdf):
@@ -54,9 +65,8 @@ def escrever_data(pdf):
     pdf.ln(5)
 
 def gerar_pdf_matrioska(dados):
-    # Usamos helvetica que é o padrão seguro para acentos no fpdf2
     pdf = PDF_Proposta()
-    pdf.set_auto_page_break(auto=True, margin=30)
+    pdf.set_auto_page_break(auto=True, margin=35)
     
     # --- PÁGINA 1: APRESENTAÇÃO ---
     pdf.add_page()
@@ -98,7 +108,6 @@ def gerar_pdf_matrioska(dados):
     pdf.cell(0, 8, "Produção editorial Premium", ln=True)
     pdf.set_font("helvetica", size=11)
     
-    # Substituí o ponto '•' por um traço '-' para evitar qualquer erro de fonte padrão
     itens = [
         "- Copidesque e preparação de textos (revisão ortográfica e padronização conforme ABNT), diagramação, revisão pós-diagramação, conferências e fechamento de arquivo.",
         "- ISBN, Capa; ficha catalográfica, código de barras.",
@@ -127,15 +136,15 @@ def gerar_pdf_matrioska(dados):
     pdf.ln(5)
     
     pdf.set_font("helvetica", size=12)
-    # Formatação do valor total
     valor_f = f"R$ {dados['total']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    extenso = valor_por_extenso(dados['total'])
     
     texto_investimento = (
-        f"- {valor_f} para custeio da produção editorial "
+        f"• {valor_f} {extenso} para custeio da produção editorial "
         "(etapas de copidesque, projeto gráfico e diagramação, revisão pós-diagramação, "
         "capa, conferências e fechamento de arquivos: para impressão e e-books);\n\n"
-        "- Não inclui exemplares impressos;\n\n"
-        "- Condição de pagamento: 40% na assinatura do contrato; 30% após 30 dias "
+        "• Não inclui exemplares impressos;\n\n"
+        "• Condição de pagamento: 40% na assinatura do contrato; 30% após 30 dias "
         "e o restante no envio do arquivo para a gráfica.\n\n"
         "Orçamento válido por 30 dias."
     )
@@ -144,7 +153,7 @@ def gerar_pdf_matrioska(dados):
     pdf.ln(20)
     escrever_data(pdf)
 
-    # O segredo do fpdf2 é o output direto em bytes
+    # CORREÇÃO DO 0 BYTES: Usando o buffer de bytes
     return pdf.output()
 
 # --- 3. INTERFACE STREAMLIT ---
@@ -225,11 +234,13 @@ if total_caracteres > 0:
         supabase.table("orcamentos").insert(payload).execute()
         st.success("Salvo no banco de dados!")
 
+    # GERAR PDF
     try:
-        pdf_bytes = gerar_pdf_matrioska(dados_finais)
+        pdf_output = gerar_pdf_matrioska(dados_finais)
+        # O fpdf2 entrega bytes diretamente no output()
         st.download_button(
             label="📥 Gerar Proposta Editorial (PDF)", 
-            data=pdf_bytes, 
+            data=bytes(pdf_output), 
             file_name=f"Proposta_{nome_livro}.pdf",
             mime="application/pdf"
         )

@@ -5,7 +5,7 @@ from docx import Document
 from fpdf import FPDF
 import io
 import os 
-from lxml import etree # Para leitura precisa do XML
+from lxml import etree
 
 # --- 1. CONEXÃO COM O BANCO DE DADOS ---
 URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
@@ -17,37 +17,36 @@ NOME_LOGO = "logo.jpeg"
 # --- 2. FUNÇÕES DE APOIO ---
 
 def contar_caracteres_oficial_word(arquivo):
-    """Conta caracteres exatamente como o Word (Corpo + Notas + Tabelas)."""
+    """Conta caracteres tentando simular a lógica exata do Word."""
     doc = Document(arquivo)
-    texto_total = ""
+    texto_total = [] # Usar lista é mais rápido e preciso para grandes textos
     
-    # Namespace necessário para ler as tags do Word (w:t)
     ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
     # 1. Corpo Principal
     for p in doc.paragraphs:
-        texto_total += p.text
+        texto_total.append(p.text)
     
     # 2. Tabelas
     for tabela in doc.tables:
         for linha in tabela.rows:
             for celula in linha.cells:
-                texto_total += celula.text
+                texto_total.append(celula.text)
                 
-    # 3. Notas de Rodapé (Footnotes) e Notas de Fim (Endnotes)
-    # Varremos as 'parts' do documento em busca de notas
+    # 3. Notas de Rodapé e Fim (XML Profundo)
     for rel in doc.part.rels.values():
         if "footnotes" in rel.target_ref or "endnotes" in rel.target_ref:
-            xml_content = rel.target_part.blob
-            root = etree.fromstring(xml_content)
-            # Buscamos apenas as tags de texto oficial <w:t>
+            root = etree.fromstring(rel.target_part.blob)
             for t in root.xpath('//w:t', namespaces=ns):
                 if t.text:
-                    texto_total += t.text
+                    texto_total.append(t.text)
 
-    # O Word conta caracteres (com espaços). 
-    # Para bater o valor exato, limpamos apenas nulos, mas mantemos espaços.
-    return len(texto_total)
+    # Juntamos tudo. O Word conta caracteres (com espaços).
+    # O segredo do Word é que ele conta a quebra de parágrafo como 0 ou 1 dependendo da versão.
+    # Vamos juntar com um espaço vazio para manter a contagem de texto pura.
+    resultado_bruto = "".join(texto_total)
+    
+    return len(resultado_bruto)
 
 def gerar_pdf(dados):
     pdf = FPDF()
@@ -84,13 +83,19 @@ st.title("📚 Orçamentador Editorial")
 col1, col2 = st.columns(2)
 with col1:
     nome_cliente = st.text_input("Nome do Cliente:")
-    arquivo_word = st.file_uploader("Arquivo Word", type=["docx"])
+    # AJUSTADO: Agora aceita .doc e .docx no seletor
+    arquivo_word = st.file_uploader("Arquivo Word (.docx ou .doc)", type=["docx", "doc"])
     
+    total_caracteres = 0
     if arquivo_word:
-        total_caracteres = contar_caracteres_oficial_word(arquivo_word)
-        st.success(f"{total_caracteres} caracteres detectados.")
-    else:
-        total_caracteres = st.number_input("Digite manualmente:", value=0)
+        if arquivo_word.name.endswith(".doc"):
+            st.error("Arquivos .doc (antigos) não permitem contagem automática. Por favor, salve como .docx no Word e tente novamente.")
+        else:
+            total_caracteres = contar_caracteres_oficial_word(arquivo_word)
+            st.success(f"{total_caracteres} caracteres detectados.")
+    
+    if total_caracteres == 0:
+        total_caracteres = st.number_input("Ou digite manualmente os caracteres do Word:", value=0)
 
 with col2:
     formato = st.selectbox("Formato:", ["14x21", "16x23", "17x24"])

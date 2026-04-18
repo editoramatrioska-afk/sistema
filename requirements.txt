@@ -1,5 +1,6 @@
 streamlit
 supabase
 python-docx
-fpdf
+fpdf2
 lxml
+num2words

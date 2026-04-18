@@ -12,7 +12,7 @@ URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
 KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZW9penJxeHpvcGpzeHRod3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NzAwNzcsImV4cCI6MjA5MjA0NjA3N30.dGQ3gnzjT5jHd4LAZTTSp1k8XemowUglFToPbDL38OY"
 supabase: Client = create_client(URL, KEY)
 
-NOME_LOGO = "logo.jpeg"
+NOME_LOGO = "logo.png"
 
 # --- 2. FUNÇÕES DE APOIO ---
 

@@ -11,27 +11,41 @@ URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
 KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZW9penJxeHpvcGpzeHRod3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NzAwNzcsImV4cCI6MjA5MjA0NjA3N30.dGQ3gnzjT5jHd4LAZTTSp1k8XemowUglFToPbDL38OY"
 supabase: Client = create_client(URL, KEY)
 
-# AJUSTADO: Agora o sistema busca por .jpeg
 NOME_LOGO = "logo.jpeg"
 
 # --- 2. FUNÇÕES DE APOIO ---
 
 def contar_caracteres(arquivo):
+    """Lê o arquivo Word buscando caracteres no corpo, tabelas e notas de rodapé."""
     doc = Document(arquivo)
     texto_total = ""
+    
+    # 1. Conta o texto dos parágrafos principais
     for p in doc.paragraphs:
         texto_total += p.text
+    
+    # 2. Conta o texto dentro de tabelas
     for tabela in doc.tables:
         for linha in tabela.rows:
             for celula in linha.cells:
                 texto_total += celula.text
+                
+    # 3. CONTA NOTAS DE RODAPÉ (Footnotes)
+    # A biblioteca docx guarda notas de rodapé em um lugar específico do arquivo XML
+    try:
+        if doc.part.footnotes:
+            for n in doc.part.footnotes.part.element.xpath('//w:t'):
+                if n.text:
+                    texto_total += n.text
+    except:
+        pass # Se não houver notas, ele ignora silenciosamente
+
     return len(texto_total)
 
 def gerar_pdf(dados):
     pdf = FPDF()
     pdf.add_page()
     
-    # Inserir Logo no PDF se o arquivo existir
     if os.path.exists(NOME_LOGO):
         pdf.image(NOME_LOGO, 10, 8, 30) 
         pdf.ln(20)
@@ -81,7 +95,7 @@ with st.sidebar:
     valor_pag_diagramacao = st.number_input("Diagramação por Página (R$)", value=5.0)
     custos_fixos_padrao = st.number_input("Capa + ISBN + Ficha (R$)", value=750.0)
 
-st.title("📚 Orçamentador Matrioska Editora")
+st.title("📚 Orçamentador Editorial Profissional")
 
 st.subheader("1. Informações do Projeto")
 col1, col2 = st.columns(2)
@@ -92,7 +106,7 @@ with col1:
     
     if arquivo_word:
         total_caracteres = contar_caracteres(arquivo_word)
-        st.success(f"{total_caracteres} caracteres detectados.")
+        st.success(f"{total_caracteres} caracteres detectados (Incluindo Notas).")
     else:
         total_caracteres = st.number_input("Ou digite os caracteres manualmente:", value=0)
 

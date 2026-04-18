@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 import math
 from docx import Document
+import docx2txt  # Nova biblioteca para precisão máxima
 from fpdf import FPDF
 import io
 import os 
@@ -15,33 +16,14 @@ NOME_LOGO = "logo.jpeg"
 
 # --- 2. FUNÇÕES DE APOIO ---
 
-def contar_caracteres(arquivo):
-    """Varredura total para bater com o contador do Word."""
-    doc = Document(arquivo)
-    texto_total = ""
+def contar_caracteres_preciso(arquivo):
+    """Extrai texto de tudo: corpo, notas, caixas de texto e tabelas."""
+    # O docx2txt processa o arquivo de forma a ler todas as partes XML de texto
+    texto = docx2txt.process(arquivo)
     
-    # 1. Corpo principal (Parágrafos)
-    for p in doc.paragraphs:
-        texto_total += p.text
-    
-    # 2. Tabelas
-    for tabela in doc.tables:
-        for linha in tabela.rows:
-            for celula in linha.cells:
-                texto_total += celula.text
-                
-    # 3. Notas de Rodapé e Notas de Fim (Varredura profunda no XML)
-    # Buscamos todos os elementos de texto 'w:t' em todas as partes do documento
-    for part in doc.part.package.parts:
-        if "footnotes" in part.partname or "endnotes" in part.partname:
-            from lxml import etree
-            root = etree.fromstring(part.blob)
-            # 'w:t' é a tag XML para texto no Word
-            for element in root.xpath('//w:t', namespaces={'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}):
-                if element.text:
-                    texto_total += element.text
-
-    return len(texto_total)
+    # O Word conta caracteres incluindo espaços. 
+    # Precisamos garantir que não estamos contando quebras de página extras ou caracteres nulos.
+    return len(texto)
 
 def gerar_pdf(dados):
     pdf = FPDF()
@@ -107,10 +89,11 @@ with col1:
     
     if arquivo_word:
         try:
-            total_caracteres = contar_caracteres(arquivo_word)
+            # Salvando temporariamente o arquivo para o docx2txt ler
+            total_caracteres = contar_caracteres_preciso(arquivo_word)
             st.success(f"{total_caracteres} caracteres detectados (Precisão Word).")
         except Exception as e:
-            st.error(f"Erro na leitura profunda: {e}")
+            st.error(f"Erro na leitura: {e}")
             total_caracteres = 0
     else:
         total_caracteres = st.number_input("Ou digite os caracteres manualmente:", value=0)

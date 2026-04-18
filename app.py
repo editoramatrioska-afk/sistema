@@ -70,12 +70,12 @@ def gerar_pdf_matrioska(dados):
     
     pdf.set_font("helvetica", size=12)
     texto_apresentacao = (
-        "A Matrioska é uma editora de livros científicos, técnicos e profissionais, provedora de conteúdo para a "
+        "    A Matrioska é uma editora de livros científicos, técnicos e profissionais, provedora de conteúdo para a "
         "formação sólida de estudantes universitários e para a atualização de profissionais das mais diversas áreas do conhecimento.\n\n"
-        "Nosso catálogo contempla autoras e autores de primeira linha, que aliam o que há de mais inovador em termos de abordagem "
+        "    Nosso catálogo contempla autoras e autores de primeira linha, que aliam o que há de mais inovador em termos de abordagem "
         "e rigor acadêmico, avaliados e validados por um renomado Conselho Editorial Nacional e Internacional que resguarda a "
         "qualidade de nossas publicações.\n\n"
-        "Se você acredita no futuro dos livros (independente do formato ou suporte), vem com a gente!\n"
+        "    Se você acredita no futuro dos livros (independente do formato ou suporte), vem com a gente!\n"
         "Para nós é uma grande satisfação tê-la como nosso autora.\n\n"
         "Forte abraço,\n\n"
         "Patrícia Melo e Luciana Félix"

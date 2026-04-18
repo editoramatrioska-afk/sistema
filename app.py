@@ -52,14 +52,11 @@ class PDF_Proposta(FPDF):
         if os.path.exists(NOME_RODAPE):
             self.image(NOME_RODAPE, 0, 275, 210)
 
-def escrever_data(pdf):
+def obter_data_formatada():
     meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", 
              "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
     hoje = datetime.now()
-    data_formatada = f"São Paulo, {hoje.day} de {meses[hoje.month - 1]} de {hoje.year}"
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 10, data_formatada, ln=True)
-    pdf.ln(5)
+    return f"São Paulo, {hoje.day} de {meses[hoje.month - 1]} de {hoje.year}"
 
 def gerar_pdf_matrioska(dados):
     pdf = PDF_Proposta()
@@ -67,7 +64,9 @@ def gerar_pdf_matrioska(dados):
     
     # --- PÁGINA 1: APRESENTAÇÃO ---
     pdf.add_page()
-    escrever_data(pdf)
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 10, obter_data_formatada(), ln=True)
+    pdf.ln(5)
     
     pdf.set_font("helvetica", size=12)
     texto_apresentacao = (
@@ -105,7 +104,6 @@ def gerar_pdf_matrioska(dados):
     pdf.cell(0, 8, "Produção editorial Premium", ln=True)
     pdf.set_font("helvetica", size=11)
     
-    # IMPORTANTE: Usei '-' em vez de '•' para evitar o erro de Unicode
     itens = [
         "- Copidesque e preparação de textos (revisão ortográfica e padronização conforme ABNT), diagramação, revisão pós-diagramação, conferências e fechamento de arquivo.",
         "- ISBN, Capa; ficha catalográfica, código de barras.",
@@ -137,7 +135,6 @@ def gerar_pdf_matrioska(dados):
     valor_f = f"R$ {dados['total']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     extenso = valor_por_extenso(dados['total'])
     
-    # Removido o símbolo '•' aqui também
     texto_investimento = (
         f"- {valor_f} {extenso} para custeio da produção editorial "
         "(etapas de copidesque, projeto gráfico e diagramação, revisão pós-diagramação, "
@@ -150,9 +147,11 @@ def gerar_pdf_matrioska(dados):
     pdf.multi_cell(0, 7, texto_investimento)
     
     pdf.ln(20)
-    escrever_data(pdf)
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 10, obter_data_formatada(), ln=True)
 
-    return pdf.output()
+    # CORREÇÃO DEFINITIVA: Converter o output para bytes
+    return bytes(pdf.output())
 
 # --- 3. INTERFACE STREAMLIT ---
 st.set_page_config(page_title="Editora Matrioska - Orçamentador", layout="wide")
@@ -235,7 +234,9 @@ if total_caracteres > 0:
 
     # GERAR PDF
     try:
+        # A função gerar_pdf_matrioska já retorna bytes agora
         pdf_bytes = gerar_pdf_matrioska(dados_finais)
+        
         st.download_button(
             label="📥 Gerar Proposta Editorial (PDF)", 
             data=pdf_bytes, 

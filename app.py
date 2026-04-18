@@ -81,7 +81,7 @@ with st.sidebar:
     valor_pag_diagramacao = st.number_input("Diagramação por Página (R$)", value=5.0)
     custos_fixos_padrao = st.number_input("Capa + ISBN + Ficha (R$)", value=750.0)
 
-st.title("📚 Orçamentador Editorial Profissional")
+st.title("📚 Orçamentador Matrioska Editora")
 
 st.subheader("1. Informações do Projeto")
 col1, col2 = st.columns(2)

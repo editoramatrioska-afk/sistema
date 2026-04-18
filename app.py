@@ -2,7 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 import math
 from docx import Document
-from fpdf import FPDF
+from fpdf import FPDF # fpdf2 também usa esse import, mas funciona melhor
 import io
 import os 
 from lxml import etree
@@ -13,7 +13,6 @@ URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
 KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZW9penJxeHpvcGpzeHRod3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NzAwNzcsImV4cCI6MjA5MjA0NjA3N30.dGQ3gnzjT5jHd4LAZTTSp1k8XemowUglFToPbDL38OY"
 supabase: Client = create_client(URL, KEY)
 
-# Atualizado para .png conforme solicitado
 NOME_LOGO = "logo.png"
 NOME_RODAPE = "rodape.png"
 
@@ -37,13 +36,12 @@ def contar_caracteres_oficial_word(arquivo):
 class PDF_Proposta(FPDF):
     def header(self):
         if os.path.exists(NOME_LOGO):
-            # Logo Centralizada: (largura_pagina - largura_logo) / 2
             self.image(NOME_LOGO, (210 - 40) / 2, 8, 40)
         self.ln(25)
 
     def footer(self):
         if os.path.exists(NOME_RODAPE):
-            # Rodapé ocupando a largura total na base
+            # Rodapé posicionado no final da página
             self.image(NOME_RODAPE, 0, 275, 210)
 
 def escrever_data(pdf):
@@ -51,11 +49,12 @@ def escrever_data(pdf):
              "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
     hoje = datetime.now()
     data_formatada = f"São Paulo, {hoje.day} de {meses[hoje.month - 1]} de {hoje.year}"
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 10, data_formatada, ln=True)
     pdf.ln(5)
 
 def gerar_pdf_matrioska(dados):
+    # Usamos helvetica que é o padrão seguro para acentos no fpdf2
     pdf = PDF_Proposta()
     pdf.set_auto_page_break(auto=True, margin=30)
     
@@ -63,7 +62,7 @@ def gerar_pdf_matrioska(dados):
     pdf.add_page()
     escrever_data(pdf)
     
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("helvetica", size=12)
     texto_apresentacao = (
         "A Matrioska é uma editora de livros científicos, técnicos e profissionais, provedora de conteúdo para a "
         "formação sólida de estudantes universitários e para a atualização de profissionais das mais diversas áreas do conhecimento.\n\n"
@@ -79,39 +78,41 @@ def gerar_pdf_matrioska(dados):
 
     # --- PÁGINA 2: PROJETO ---
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 14)
+    pdf.set_font("helvetica", 'B', 14)
     pdf.cell(0, 10, "Projeto Editorial", ln=True)
     pdf.ln(5)
     
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("helvetica", size=12)
     pdf.cell(0, 8, f"Livro: {dados['livro']}", ln=True)
     pdf.cell(0, 8, f"Autor: {dados['cliente']}", ln=True)
     pdf.ln(2)
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "Especificações:", ln=True)
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("helvetica", size=12)
     pdf.cell(0, 7, f"- Laudas: {dados['laudas']:.0f}", ln=True)
     pdf.cell(0, 7, f"- Páginas estimadas: {dados['paginas']}", ln=True)
     pdf.cell(0, 7, f"- Formato: {dados['formato']}", ln=True)
     pdf.ln(5)
 
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "Produção editorial Premium", ln=True)
-    pdf.set_font("Arial", size=11)
+    pdf.set_font("helvetica", size=11)
+    
+    # Substituí o ponto '•' por um traço '-' para evitar qualquer erro de fonte padrão
     itens = [
-        "• Copidesque e preparação de textos (revisão ortográfica e padronização conforme ABNT), diagramação, revisão pós-diagramação, conferências e fechamento de arquivo.",
-        "• ISBN, Capa; ficha catalográfica, código de barras.",
-        "• Conteúdo publicado sob o selo editorial Matrioska Editora.",
-        "• Edições impressa e digital poderão ser disponibilizadas na loja virtual da editora e nas principais plataformas de e-commerce e livrarias virtuais (Amazon e marketplaces)."
+        "- Copidesque e preparação de textos (revisão ortográfica e padronização conforme ABNT), diagramação, revisão pós-diagramação, conferências e fechamento de arquivo.",
+        "- ISBN, Capa; ficha catalográfica, código de barras.",
+        "- Conteúdo publicado sob o selo editorial Matrioska Editora.",
+        "- Edições impressa e digital poderão ser disponibilizadas na loja virtual da editora e nas principais plataformas de e-commerce e livrarias virtuais (Amazon e marketplaces)."
     ]
     for item in itens:
         pdf.multi_cell(0, 6, item)
         pdf.ln(2)
 
     pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "Valores detalhados dos serviços:", ln=True)
-    pdf.set_font("Arial", size=11)
+    pdf.set_font("helvetica", size=11)
     pdf.cell(0, 7, f"- Copidesque: R$ {dados['v_copidesque']:.2f}", ln=True)
     pdf.cell(0, 7, f"- Diagramação: R$ {dados['v_diag']:.2f}", ln=True)
     pdf.cell(0, 7, f"- Revisão: R$ {dados['v_revisao']:.2f}", ln=True)
@@ -121,18 +122,20 @@ def gerar_pdf_matrioska(dados):
 
     # --- PÁGINA 3: INVESTIMENTO ---
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 14)
+    pdf.set_font("helvetica", 'B', 14)
     pdf.cell(0, 10, "Proposta de investimento:", ln=True)
     pdf.ln(5)
     
-    pdf.set_font("Arial", size=12)
-    # Aqui usamos o valor total formatado
+    pdf.set_font("helvetica", size=12)
+    # Formatação do valor total
+    valor_f = f"R$ {dados['total']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    
     texto_investimento = (
-        f"• R$ {dados['total']:,.2f} para custeio da produção editorial "
+        f"- {valor_f} para custeio da produção editorial "
         "(etapas de copidesque, projeto gráfico e diagramação, revisão pós-diagramação, "
         "capa, conferências e fechamento de arquivos: para impressão e e-books);\n\n"
-        "• Não inclui exemplares impressos;\n\n"
-        "• Condição de pagamento: 40% na assinatura do contrato; 30% após 30 dias "
+        "- Não inclui exemplares impressos;\n\n"
+        "- Condição de pagamento: 40% na assinatura do contrato; 30% após 30 dias "
         "e o restante no envio do arquivo para a gráfica.\n\n"
         "Orçamento válido por 30 dias."
     )
@@ -141,7 +144,8 @@ def gerar_pdf_matrioska(dados):
     pdf.ln(20)
     escrever_data(pdf)
 
-    return pdf.output(dest='S').encode('latin-1', errors='ignore')
+    # O segredo do fpdf2 é o output direto em bytes
+    return pdf.output()
 
 # --- 3. INTERFACE STREAMLIT ---
 st.set_page_config(page_title="Editora Matrioska - Orçamentador", layout="wide")
@@ -166,11 +170,14 @@ col1, col2 = st.columns(2)
 
 with col1:
     nome_cliente = st.text_input("Nome do Autor(a):")
-    nome_livro = st.text_input("Nome do Livro:") # NOVO CAMPO
+    nome_livro = st.text_input("Nome do Livro:") 
     arquivo_word = st.file_uploader("Subir Manuscrito (.docx)", type=["docx"])
     
-    total_caracteres = contar_caracteres_oficial_word(arquivo_word) if arquivo_word else st.number_input("Total de caracteres manualmente:", value=0)
-    if arquivo_word: st.success(f"{total_caracteres} caracteres detectados.")
+    if arquivo_word:
+        total_caracteres = contar_caracteres_oficial_word(arquivo_word)
+        st.success(f"{total_caracteres} caracteres detectados.")
+    else:
+        total_caracteres = st.number_input("Total de caracteres manualmente:", value=0)
 
     st.subheader("Elementos Extras")
     pag_extras = st.number_input("Soma de páginas extras (Imagens, Tabelas, etc):", min_value=0, value=0)
@@ -182,7 +189,9 @@ with col2:
     meta = {"14x21": 1700, "16x23": 2200, "17x24": 2900}.get(formato_sel, 0)
     if formato_sel == "Personalizado":
         n_f = st.text_input("Nome Formato:"); m_f = st.number_input("Caracteres/Pág:", value=1500)
-        if st.button("Salvar Formato"): st.session_state['formatos_custom'][n_f] = m_f; st.rerun()
+        if st.button("Salvar Formato"): 
+            st.session_state['formatos_custom'][n_f] = m_f
+            st.rerun()
     elif formato_sel not in ["14x21", "16x23", "17x24"]:
         meta = st.session_state['formatos_custom'][formato_sel]
 
@@ -216,8 +225,16 @@ if total_caracteres > 0:
         supabase.table("orcamentos").insert(payload).execute()
         st.success("Salvo no banco de dados!")
 
-    pdf_file = gerar_pdf_matrioska(dados_finais)
-    st.download_button("📥 Gerar Proposta Editorial (PDF)", data=pdf_file, file_name=f"Proposta_{nome_livro}.pdf")
+    try:
+        pdf_bytes = gerar_pdf_matrioska(dados_finais)
+        st.download_button(
+            label="📥 Gerar Proposta Editorial (PDF)", 
+            data=pdf_bytes, 
+            file_name=f"Proposta_{nome_livro}.pdf",
+            mime="application/pdf"
+        )
+    except Exception as e:
+        st.error(f"Erro ao gerar PDF: {e}")
 
 if st.checkbox("Ver histórico"):
     hist = supabase.table("orcamentos").select("*").execute()

@@ -6,12 +6,12 @@ from fpdf import FPDF
 import io
 import os 
 from lxml import etree
-from datetime import datetime
+from datetime import datetime, timedelta
 from num2words import num2words
 import pandas as pd
 
 # --- 1. CONFIGURAÇÃO E CONEXÃO ---
-st.set_page_config(page_title="Editora Matrioska - Sistema Interno", layout="wide")
+st.set_page_config(page_title="Editora Matrioska - ERP Interno", layout="wide")
 
 URL: str = "https://gbeoizrqxzopjsxthwym.supabase.co"
 KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZW9penJxeHpvcGpzeHRod3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NzAwNzcsImV4cCI6MjA5MjA0NjA3N30.dGQ3gnzjT5jHd4LAZTTSp1k8XemowUglFToPbDL38OY"
@@ -163,6 +163,22 @@ def gerar_pdf_matrioska(dados):
     pdf.cell(0, 10, obter_data_formatada(), ln=True)
     return bytes(pdf.output())
 
+def registrar_financeiro(descricao, valor, tipo, categoria, vencimento, status, parcelas=1):
+    valor_parcela = valor / parcelas
+    for i in range(parcelas):
+        data_p = vencimento + timedelta(days=30 * i)
+        payload = {
+            "descricao": f"{descricao} ({i+1}/{parcelas})" if parcelas > 1 else descricao,
+            "valor": valor_parcela if tipo == "Entrada" else -valor_parcela,
+            "tipo": tipo,
+            "categoria": categoria,
+            "data_vencimento": data_p.strftime("%Y-%m-%d"),
+            "status": status if i == 0 else "Pendente",
+            "parcela_atual": i + 1,
+            "total_parcelas": parcelas
+        }
+        supabase.table("transacoes").insert(payload).execute()
+
 # --- 3. INICIALIZAÇÃO DE ESTADO ---
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if 'edit_data' not in st.session_state: st.session_state['edit_data'] = None
@@ -171,7 +187,7 @@ if 'edit_data' not in st.session_state: st.session_state['edit_data'] = None
 if not st.session_state['logged_in']:
     login()
 else:
-    tab1, tab2 = st.tabs(["📝 Novo Orçamento", "📜 Histórico"])
+    tab1, tab2, tab3 = st.tabs(["📝 Novo Orçamento", "📜 Histórico", "💰 Financeiro"])
 
     # --- ABA 1: GERADOR ---
     with tab1:
@@ -264,3 +280,60 @@ else:
                     st.success("Carregado! Volte na Aba 1.")
             else: st.info("Nenhum registro.")
         except Exception as e: st.error(f"Erro banco: {e}")
+
+    # --- ABA 3: FINANCEIRO ---
+    with tab3:
+        st.title("📊 Gestão Financeira")
+        
+        # 1. Resumo de Caixa
+        try:
+            res_fin = supabase.table("transacoes").select("*").execute()
+            if res_fin.data:
+                df_f = pd.DataFrame(res_fin.data)
+                df_f['valor'] = pd.to_numeric(df_f['valor'])
+                
+                saldo_real = df_f[df_f['status'] == 'Pago']['valor'].sum()
+                previsao_futura = df_f[df_f['status'] == 'Pendente']['valor'].sum()
+                
+                c_s1, c_s2, c_s3 = st.columns(3)
+                c_s1.metric("Saldo em Conta (Pago)", f"R$ {saldo_real:,.2f}")
+                c_s2.metric("Previsão a Receber", f"R$ {previsao_futura:,.2f}")
+                c_s3.metric("Fluxo Total Esperado", f"R$ {(saldo_real + previsao_futura):,.2f}")
+            else:
+                st.info("Aguardando lançamentos financeiros.")
+        except Exception as e:
+            st.error(f"Erro ao carregar resumo financeiro: {e}")
+
+        st.divider()
+        
+        # 2. Cadastro de Movimentação
+        with st.expander("➕ Novo Lançamento (Entrada/Saída/Parcelamento)"):
+            with st.form("add_fin"):
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    desc_f = st.text_input("Descrição (Ex: Venda Livro X ou Aluguel)")
+                    valor_f = st.number_input("Valor Total (R$)", min_value=0.01)
+                    data_f = st.date_input("Data de Vencimento (1ª parcela)")
+                with col_f2:
+                    tipo_f = st.selectbox("Tipo", ["Entrada", "Saída"])
+                    parc_f = st.number_input("Quantidade de Parcelas", min_value=1, value=1)
+                    cat_f = st.selectbox("Categoria", ["Serviço Editorial", "Venda Livro", "Infraestrutura", "Marketing", "Outros"])
+                    stat_f = st.selectbox("Status da 1ª Parcela", ["Pago", "Pendente"])
+                
+                if st.form_submit_button("Registrar no Fluxo"):
+                    try:
+                        registrar_financeiro(desc_f, valor_f, tipo_f, cat_f, data_f, stat_f, parc_f)
+                        st.success("Lançamento(s) realizado(s) com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar: {e}")
+
+        # 3. Tabela de Movimentações
+        st.subheader("🗓️ Movimentações Detalhadas")
+        try:
+            if res_fin.data:
+                df_f['data_vencimento'] = pd.to_datetime(df_f['data_vencimento'])
+                # Ordenar por data mais recente
+                st.dataframe(df_f.sort_values(by='data_vencimento', ascending=False), use_container_width=True)
+        except:
+            pass
